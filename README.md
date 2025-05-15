@@ -64,7 +64,7 @@ ui.batch(events);
 
 ```bash
 # Clone the repository
-git clone https://github.com/liunian-hub/ag-ui-client.git
+git clone https://github.com/HubbleVision/ag-ui-client
 
 # Install dependencies
 cd ag-ui-client
