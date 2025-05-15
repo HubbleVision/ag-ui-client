@@ -1,24 +1,8 @@
-import { EventEmitter } from "eventemitter3";
-import { ReactNode } from "react";
-
-export type ContextItem = {
-  id: string;
-  name: string;
-  data: any;
-  from: string;
-  role?: "system";
-  once?: boolean;
-  type: string;
-  title?: string;
-  content?: ReactNode | string;
-};
-
-export type Context = ContextItem[];
-
 export type UIEventHandler = (
   props: Record<string, any>,
-  next: (nextProps?: Record<string, any>) => void
-) => void;
+  next: (nextProps?: Record<string, any>) => void,
+  stop: () => void
+) => void | Record<string, any> | any;
 
 export interface UIEventChainItem {
   event: string;
