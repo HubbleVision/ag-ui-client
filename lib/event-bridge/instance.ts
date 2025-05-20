@@ -6,17 +6,17 @@ import {
 } from "./types";
 import EventEmitter from "eventemitter3";
 
-// 定义一个特殊的休眠事件类型
+// Define a special sleep event type
 const SLEEP_EVENT = "__SLEEP__";
 
 export class UIBridge implements UIBridgeInterface {
   private _emitter = new EventEmitter();
   private _eventChain: UIEventChainItem[] = [];
-  private _isProcessing = false; // 标志是否正在处理事件链
+  private _isProcessing = false; // Flag indicating whether event chain is being processed
 
   constructor() {
-    // 注册内部休眠处理器
-    // 当触发休眠事件时,延迟指定时间后执行下一个事件
+    // Register internal sleep handler
+    // When sleep event is triggered, delay execution of next event by specified duration
     this._emitter.on(SLEEP_EVENT, (props, next, stop) => {
       const { duration = 0 } = props;
       setTimeout(() => {
@@ -26,50 +26,50 @@ export class UIBridge implements UIBridgeInterface {
   }
 
   /**
-   * 注册事件监听器
-   * @param event 事件名称
-   * @param callback 回调函数,接收事件参数、next函数和stop函数作为参数
-   * @returns 返回一个取消监听的函数
+   * Register an event listener
+   * @param event Event name
+   * @param callback Callback function that receives event props, next function and stop function as parameters
+   * @returns Function to unsubscribe the listener
    */
   public on(event: string, callback: UIEventHandler) {
-    // 包装回调函数，确保总是会调用next，除非显式调用了stop
+    // Wrap callback to ensure next is always called unless stop is explicitly called
     const wrappedCallback = (
       props: Record<string, any>,
       next: (nextProps?: Record<string, any>) => void
     ) => {
       let isStopped = false;
 
-      // 定义stop函数，调用后会阻止事件链继续执行
+      // Define stop function that prevents event chain from continuing when called
       const stop = () => {
         isStopped = true;
       };
 
       try {
-        // 执行原始回调，传入props、next和stop函数
+        // Execute original callback with props, next and stop functions
         const result = callback(props, next, stop);
 
-        // 如果已经调用了stop函数，不继续执行事件链
+        // If stop was called, don't continue event chain
         if (isStopped) {
           return;
         }
 
-        // 如果回调返回了一个值，处理它
+        // If callback returned a value, handle it
         if (result !== undefined) {
-          // 对象类型返回值的特殊处理
+          // Special handling for object type returns
           if (typeof result === "object" && result !== null) {
-            // 使用返回对象作为下一个事件的参数
+            // Use returned object as props for next event
             next(result);
           } else {
-            // 非对象返回值，包装成对象传递
+            // Wrap non-object returns in an object
             next({ value: result, prev: props });
           }
         } else {
-          // 没有返回值，使用原始props调用next
+          // No return value, call next with original props
           next(props);
         }
       } catch (error) {
         console.error(`Error in event handler for "${event}":`, error);
-        // 如果没有显式停止，出错时也继续事件链，避免整个链被中断
+        // Continue event chain unless explicitly stopped, to avoid breaking entire chain
         if (!isStopped) {
           next(props);
         }
@@ -83,16 +83,16 @@ export class UIBridge implements UIBridgeInterface {
   }
 
   /**
-   * 向事件链中添加一个事件
-   * @param event 事件名称
-   * @param props 事件参数对象
-   * @returns 返回this实例,支持链式调用
+   * Add an event to the event chain
+   * @param event Event name
+   * @param props Event parameters object
+   * @returns This instance for chaining
    */
   public add(event: string, props: Record<string, any> = {}): UIBridge {
-    // 添加事件到链中
+    // Add event to chain
     this._eventChain.push({ event, props });
 
-    // 如果当前没有正在处理的事件，则启动处理
+    // Start processing if no events are currently being processed
     if (!this._isProcessing) {
       this._processNextEvent();
     }
@@ -101,26 +101,26 @@ export class UIBridge implements UIBridgeInterface {
   }
 
   /**
-   * 向事件链中添加一个延迟
-   * @param duration 延迟时间(毫秒)
-   * @returns 返回this实例,支持链式调用
+   * Add a delay to the event chain
+   * @param duration Delay duration in milliseconds
+   * @returns This instance for chaining
    */
   public sleep(duration: number): UIBridge {
     return this.add(SLEEP_EVENT, { duration });
   }
 
   /**
-   * 批量添加事件到事件链
-   * @param events 事件数组,每个事件包含事件名和可选的参数
-   * @returns 返回this实例
+   * Batch add events to the event chain
+   * @param events Array of events, each containing event name and optional parameters
+   * @returns This instance
    */
   public batch(events: UIEventBatchItem[]): UIBridge {
-    // 清空当前事件链,避免混合
+    // Clear current event chain to avoid mixing
     this.clear();
 
     events.forEach((item) => {
       if (item.event === "sleep" && item.props?.duration) {
-        // 处理特殊的休眠事件
+        // Handle special sleep event
         this.sleep(item.props.duration);
       } else {
         this.add(item.event, item.props || {});
@@ -131,7 +131,7 @@ export class UIBridge implements UIBridgeInterface {
   }
 
   /**
-   * 清空事件链
+   * Clear the event chain
    */
   public clear(): UIBridge {
     this._eventChain = [];
@@ -140,42 +140,42 @@ export class UIBridge implements UIBridgeInterface {
   }
 
   /**
-   * 处理事件链中的下一个事件
-   * @param prevProps 上一个事件传递的参数
+   * Process next event in the chain
+   * @param prevProps Parameters passed from previous event
    */
   private _processNextEvent(prevProps: Record<string, any> = {}) {
-    // 如果没有更多事件，结束处理
+    // End processing if no more events
     if (this._eventChain.length === 0) {
       this._isProcessing = false;
       return;
     }
 
-    // 标记为正在处理
+    // Mark as processing
     this._isProcessing = true;
 
-    // 获取并移除第一个事件
+    // Get and remove first event
     const currentEvent = this._eventChain.shift()!;
     const eventProps = {
       ...currentEvent.props,
       prev: prevProps,
     };
 
-    // 检查事件是否有监听器
+    // Check if event has listeners
     if (this._emitter.listenerCount(currentEvent.event) > 0) {
       this._emitter.emit(
         currentEvent.event,
         eventProps,
         (nextProps: Record<string, any> = {}) => {
-          // 处理下一个事件
+          // Process next event
           this._processNextEvent(nextProps);
         }
       );
     } else {
-      // 如果没有监听器,直接处理下一个事件
+      // If no listeners, process next event directly
       this._processNextEvent(prevProps);
     }
   }
 }
 
-// 导出一个全局单例
+// Export global singleton
 export const ui = new UIBridge();
