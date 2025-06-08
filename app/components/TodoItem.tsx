@@ -29,7 +29,11 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
         }
         
         setCompleted(true);
-        ui.add("todo.toggle", { id, completed: true });
+        // Use new declarative API
+        ui.chain("workflow-mark-complete")
+          .add("todo.toggle", { id, completed: true })
+          .build();
+        ui.consume("workflow-mark-complete");
         next();
       });
 
@@ -45,7 +49,11 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
         if (newTitle) {
           setEditTitle(newTitle);
           setIsEditing(false);
-          ui.add("todo.edit", { id, title: newTitle });
+          // Use new declarative API
+          ui.chain("workflow-edit-task")
+            .add("todo.edit", { id, title: newTitle })
+            .build();
+          ui.consume("workflow-edit-task");
         }
         next();
       });
@@ -87,11 +95,19 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
   const handleToggle = () => {
     const newCompleted = !completed;
     setCompleted(newCompleted);
-    ui.add("todo.toggle", { id, completed: newCompleted });
+    // Use new declarative API
+    ui.chain("toggle-todo")
+      .add("todo.toggle", { id, completed: newCompleted })
+      .build();
+    ui.consume("toggle-todo");
   };
 
   const handleDelete = () => {
-    ui.add("todo.delete", { id });
+    // Use new declarative API
+    ui.chain("delete-todo")
+      .add("todo.delete", { id })
+      .build();
+    ui.consume("delete-todo");
   };
 
   const handleEdit = () => {
@@ -101,7 +117,11 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
   const handleSave = () => {
     setIsEditing(false);
     if (editTitle.trim() !== title) {
-      ui.add("todo.edit", { id, title: editTitle });
+      // Use new declarative API
+      ui.chain("edit-todo")
+        .add("todo.edit", { id, title: editTitle })
+        .build();
+      ui.consume("edit-todo");
     }
   };
 
@@ -114,14 +134,14 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
     <div 
       id={id}
       ref={itemRef}
-      className={`flex items-center border-b border-slate-200 py-4 px-4 transition-all ${isLatest ? 'bg-blue-50' : ''}`}
+      className={`flex items-center border-b border-gray-600 py-4 px-4 transition-all ${isLatest ? 'bg-blue-900' : 'bg-gray-800'}`}
       data-testid={`todo-item-${id}`}
     >
       <input
         type="checkbox"
         checked={completed}
         onChange={handleToggle}
-        className="h-5 w-5 rounded-full border-slate-300 text-indigo-600 focus:ring-indigo-500"
+        className="h-5 w-5 rounded-full border-gray-500 text-indigo-600 focus:ring-indigo-500 bg-gray-700"
       />
       
       {isEditing ? (
@@ -130,18 +150,18 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
             type="text"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
-            className="flex-1 px-3 py-2 border rounded-md text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            className="flex-1 px-3 py-2 border border-gray-600 rounded-md text-white bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             autoFocus
           />
           <button
             onClick={handleSave}
-            className="ml-3 px-3 py-2 bg-indigo-500 text-white rounded-md text-sm hover:bg-indigo-600 transition-colors"
+            className="ml-3 px-3 py-2 bg-indigo-600 text-white rounded-md text-sm hover:bg-indigo-700 transition-colors"
           >
             Save
           </button>
           <button
             onClick={handleCancel}
-            className="ml-2 px-3 py-2 bg-slate-200 text-slate-700 rounded-md text-sm hover:bg-slate-300 transition-colors"
+            className="ml-2 px-3 py-2 bg-gray-600 text-gray-200 rounded-md text-sm hover:bg-gray-500 transition-colors"
           >
             Cancel
           </button>
@@ -149,7 +169,7 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
       ) : (
         <>
           <span 
-            className={`ml-4 flex-1 text-slate-700 ${completed ? 'line-through text-slate-400' : ''}`}
+            className={`ml-4 flex-1 text-gray-200 ${completed ? 'line-through text-gray-500' : ''}`}
             onDoubleClick={handleEdit}
           >
             {title}
@@ -157,13 +177,13 @@ export default function TodoItem({ id, title, completed: initialCompleted, isLat
           <div className="flex items-center">
             <button
               onClick={handleEdit}
-              className="ml-2 px-3 py-1 text-indigo-500 hover:text-indigo-700 transition-colors"
+              className="ml-2 px-3 py-1 text-indigo-400 hover:text-indigo-300 transition-colors"
             >
               Edit
             </button>
             <button
               onClick={handleDelete}
-              className="ml-2 px-3 py-1 text-rose-500 hover:text-rose-700 transition-colors"
+              className="ml-2 px-3 py-1 text-red-400 hover:text-red-300 transition-colors"
             >
               Delete
             </button>

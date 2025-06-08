@@ -133,16 +133,16 @@ export default function ReadmeViewer() {
   const [showLanguage, setShowLanguage] = useState<"en" | "zh">("en");
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6 my-8">
+    <div className="bg-gray-800 rounded-xl shadow-sm p-6 my-8 border border-gray-600">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-slate-800">Project Documentation</h2>
+        <h2 className="text-xl font-semibold text-white">Project Documentation</h2>
         <LanguageSwitcher 
           showLanguage={showLanguage} 
           onLanguageChange={setShowLanguage} 
         />
       </div>
       
-      <div className="prose prose-slate max-w-none">
+      <div className="prose prose-invert max-w-none">
         <div className="markdown-body">
           {showLanguage === "en" ? (
             <div dangerouslySetInnerHTML={{ __html: marked(englishReadme) }} />
@@ -159,30 +159,30 @@ export default function ReadmeViewer() {
 function marked(markdown: string): string {
   // Convert headings
   let html = markdown
-    .replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold mt-8 mb-4 text-gray-900">$1</h1>')
-    .replace(/^## (.*$)/gm, '<h2 class="text-2xl font-semibold mt-6 mb-3 text-gray-900">$1</h2>')
-    .replace(/^### (.*$)/gm, '<h3 class="text-xl font-semibold mt-4 mb-2 text-gray-800">$1</h3>')
-    .replace(/^#### (.*$)/gm, '<h4 class="text-lg font-medium mt-3 mb-2 text-gray-800">$1</h4>');
+    .replace(/^# (.*$)/gm, '<h1 class="text-3xl font-bold mt-8 mb-4 text-white">$1</h1>')
+    .replace(/^## (.*$)/gm, '<h2 class="text-2xl font-semibold mt-6 mb-3 text-white">$1</h2>')
+    .replace(/^### (.*$)/gm, '<h3 class="text-xl font-semibold mt-4 mb-2 text-gray-200">$1</h3>')
+    .replace(/^#### (.*$)/gm, '<h4 class="text-lg font-medium mt-3 mb-2 text-gray-200">$1</h4>');
 
   // Convert code blocks
   html = html.replace(/```([\s\S]*?)```/g, (match, code) => {
-    return `<pre class="bg-slate-800 text-slate-100 p-4 rounded-md overflow-x-auto my-4"><code>${code}</code></pre>`;
+    return `<pre class="bg-black text-green-400 p-4 rounded-md overflow-x-auto my-4 border border-gray-600"><code>${code}</code></pre>`;
   });
 
   // Convert bullet points
-  html = html.replace(/^- (.*$)/gm, '<li class="ml-6 list-disc text-gray-700">$1</li>');
+  html = html.replace(/^- (.*$)/gm, '<li class="ml-6 list-disc text-gray-300">$1</li>');
   html = html.replace(/(<li[^>]*>.*<\/li>\n)+/g, (match) => {
     return `<ul class="my-3">${match}</ul>`;
   });
 
   // Convert numbered lists
-  html = html.replace(/^\d+\. (.*$)/gm, '<li class="ml-6 list-decimal text-gray-700">$1</li>');
+  html = html.replace(/^\d+\. (.*$)/gm, '<li class="ml-6 list-decimal text-gray-300">$1</li>');
 
   // Convert paragraphs
-  html = html.replace(/^(?!<[uh])(?!$)(.+)$/gm, '<p class="my-3 text-gray-700">$1</p>');
+  html = html.replace(/^(?!<[uh])(?!$)(.+)$/gm, '<p class="my-3 text-gray-300">$1</p>');
 
   // Convert bold
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-gray-900">$1</strong>');
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>');
 
   // Convert italic
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');

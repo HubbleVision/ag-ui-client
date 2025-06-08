@@ -81,7 +81,13 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
     // Listen to workflow.deleteLatest events
     const unsubDeleteLatest = ui.on("workflow.deleteLatest", (props, next) => {
       if (latestTodoId) {
-        ui.add("todo.delete", { id: latestTodoId });
+        // Use new declarative API
+        ui.chain("delete-latest-todo")
+          .add("todo.delete", { id: latestTodoId })
+          .build();
+        
+        // Consume immediately
+        ui.consume("delete-latest-todo");
       }
       next();
     });
@@ -91,13 +97,21 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
       const { indexes = [] } = props;
       
       if (todos.length > 0) {
-        // Find and mark todos by index
+        // Declaratively define batch marking workflow
+        const chain = ui.chain("mark-multiple-todos");
+        
+        // Find corresponding todos and add to chain
         indexes.forEach((index: number) => {
           if (index >= 0 && index < todos.length) {
             const todo = todos[index];
-            ui.add("todo.toggle", { id: todo.id, completed: true });
+            chain.add("todo.toggle", { id: todo.id, completed: true });
           }
         });
+        
+        chain.build();
+        
+        // Consume immediately
+        ui.consume("mark-multiple-todos");
       }
       
       next();
@@ -106,7 +120,13 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
     // Listen to workflow.markComplete events
     const unsubMarkComplete = ui.on("workflow.markComplete", (props, next) => {
       if (latestTodoId) {
-        ui.add("todo.toggle", { id: latestTodoId, completed: true });
+        // Use new declarative API
+        ui.chain("mark-latest-complete")
+          .add("todo.toggle", { id: latestTodoId, completed: true })
+          .build();
+        
+        // Consume immediately
+        ui.consume("mark-latest-complete");
       }
       next();
     });
@@ -115,7 +135,13 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
     const unsubEditTask = ui.on("workflow.editTask", (props, next) => {
       const { newTitle } = props;
       if (latestTodoId && newTitle) {
-        ui.add("todo.edit", { id: latestTodoId, title: newTitle });
+        // Use new declarative API
+        ui.chain("edit-latest-task")
+          .add("todo.edit", { id: latestTodoId, title: newTitle })
+          .build();
+        
+        // Consume immediately
+        ui.consume("edit-latest-task");
       }
       next();
     });
@@ -148,13 +174,25 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
   const handleAddTodo = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTodo.trim()) {
-      ui.add("todo.add", { title: newTodo.trim() });
+      // Use new declarative API
+      ui.chain("add-new-todo")
+        .add("todo.add", { title: newTodo.trim() })
+        .build();
+      
+      // Consume immediately
+      ui.consume("add-new-todo");
       setNewTodo("");
     }
   };
 
   const handleClearCompleted = () => {
-    ui.add("todo.clearCompleted");
+    // Use new declarative API
+    ui.chain("clear-completed-todos")
+      .add("todo.clearCompleted")
+      .build();
+    
+    // Consume immediately
+    ui.consume("clear-completed-todos");
   };
 
   const activeTodos = todos.filter(todo => !todo.completed);
@@ -168,7 +206,7 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
           value={newTodo}
           onChange={(e) => setNewTodo(e.target.value)}
           placeholder="Add a new task..."
-          className="flex-1 px-4 py-3 border border-slate-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-slate-700"
+          className="flex-1 px-4 py-3 border border-gray-600 rounded-l-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-white bg-gray-700 placeholder-gray-400"
         />
         <button
           type="submit"
@@ -178,11 +216,11 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
         </button>
       </form>
 
-      <div className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+      <div className="border border-gray-600 rounded-lg overflow-hidden shadow-sm">
         {todos.length === 0 ? (
-          <div className="py-8 text-center text-slate-500 bg-slate-50">No tasks yet</div>
+          <div className="py-8 text-center text-gray-400 bg-gray-800">No tasks yet</div>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-gray-600">
             {todos.map((todo) => (
               <TodoItem 
                 key={todo.id} 
@@ -194,14 +232,14 @@ export default function TodoList({ initialTodos = [] }: TodoListProps) {
         )}
       </div>
 
-      <div className="flex justify-between items-center mt-5 px-1 text-sm text-slate-500">
+      <div className="flex justify-between items-center mt-5 px-1 text-sm text-gray-400">
         <div>
           {activeTodos.length} {activeTodos.length === 1 ? 'task' : 'tasks'} remaining
         </div>
         {completedTodos.length > 0 && (
           <button
             onClick={handleClearCompleted}
-            className="text-indigo-500 hover:text-indigo-700 transition-colors"
+            className="text-indigo-400 hover:text-indigo-300 transition-colors"
           >
             Clear completed
           </button>

@@ -4,6 +4,7 @@ Event Bridge 提供了两个主要工具，用于增强React应用中组件间�
 
 1. `UIBridge` - 用于UI组件间事件链式调用
 2. `EventBridge` - 用于组件上下文管理
+3. `StateManager` - 用于异步状态同步和管理
 
 ## UIBridge
 
@@ -12,6 +13,7 @@ UIBridge 是一个轻量级的事件总线，专为UI组件间的链式事件通
 - 在没有直接引用关系的组件间传递事件
 - 实现链式事件处理流程
 - 在事件间传递状态数据
+- 处理异步状态同步问题
 
 ### 工作原理
 
@@ -235,4 +237,119 @@ bus.onContextChange((context, from) => {
     // ...
   }
 });
-``` 
+```
+
+## 状态管理 (StateManager)
+
+StateManager 解决了异步状态同步问题，确保事件基于一致的状态执行。
+
+### 问题场景
+
+假设有两个组件A和B：
+- A组件：table业务组件，监听context变化进行异步数据过滤，同时监听ui事件进行操作
+- B组件：聊天组件，先更新context，再触发ui事件
+
+问题：context更新触发异步过滤，但ui事件同时执行，导致操作基于未更新的数据。
+
+### 解决方案
+
+使用StateManager实现状态同步：
+
+```typescript
+import { ui } from 'lib/event-bridge/instance';
+import { StateProvider } from 'lib/event-bridge/types';
+
+// 1. A组件注册状态提供者
+const tableStateProvider: StateProvider = {
+  getId: () => "tableData",
+  getState: () => ({
+    data: filteredData,
+    isLoading,
+    isReady: !isLoading && filteredData !== null
+  }),
+  isReady: () => !isLoading && filteredData !== null,
+  onStateChange: (callback) => {
+    // 监听内部状态变化
+    return subscribeToStateChanges(callback);
+  }
+};
+
+ui.registerStateProvider("tableData", tableStateProvider);
+
+// 2. A组件的UI事件处理器等待状态就绪
+ui.on("table.selectAll", async (props, next) => {
+  try {
+    // 等待table数据状态就绪
+    const state = await ui.waitForState("tableData", { timeout: 3000 });
+    
+    if (state.isReady) {
+      // 现在可以安全地操作已过滤的数据
+      const selectedRows = state.data.map(row => row.id);
+      next({ selectedCount: selectedRows.length });
+    }
+  } catch (error) {
+    console.error("等待状态超时:", error);
+    next({ selectedCount: 0 });
+  }
+});
+
+// 3. B组件触发事件链，自动等待状态同步
+ui.add("context.filter", { keyword: "apple" })
+  .add("waitForState", { stateId: "tableData", timeout: 3000 })
+  .add("table.selectAll", {});
+```
+
+### 状态管理API
+
+#### `registerStateProvider(id: string, provider: StateProvider): () => void`
+
+注册状态提供者。
+
+- `id` - 状态提供者的唯一标识
+- `provider` - 实现StateProvider接口的对象
+
+返回取消注册的函数。
+
+#### `waitForState(stateId: string, options?: WaitForStateOptions): Promise<any>`
+
+等待状态就绪。
+
+- `stateId` - 状态提供者ID
+- `options` - 等待选项
+  - `timeout` - 超时时间（默认5000ms）
+  - `pollInterval` - 轮询间隔（默认100ms）
+
+返回Promise，状态就绪时resolve状态数据。
+
+#### `clearStateProvider(id: string): void`
+
+清除指定的状态提供者。
+
+#### `getStateProviders(): Map<string, StateProvider>`
+
+获取所有已注册的状态提供者。
+
+### StateProvider接口
+
+```typescript
+interface StateProvider {
+  getId(): string;                          // 获取状态ID
+  getState(): any;                         // 获取当前状态
+  isReady(): boolean;                      // 状态是否就绪
+  onStateChange(callback: (state: any) => void): () => void;  // 监听状态变化
+}
+```
+
+### 使用场景
+
+1. **异步数据过滤与操作同步**：确保UI操作基于最新的过滤结果
+2. **多组件状态协调**：不同组件间的状态依赖管理
+3. **异步请求与UI更新同步**：等待API请求完成后再执行UI操作
+4. **复杂工作流状态管理**：多步骤操作中的状态一致性保证
+
+### 最佳实践
+
+1. **合理设置超时时间**：根据异步操作的预期时间设置合适的超时
+2. **状态粒度控制**：将相关的状态组合在一起，避免过于细粒度的状态提供者
+3. **错误处理**：始终处理状态等待超时的情况
+4. **内存管理**：组件卸载时及时取消状态提供者注册 

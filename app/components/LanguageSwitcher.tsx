@@ -18,7 +18,7 @@ export default function LanguageSwitcher({
         className={`px-3 py-1 rounded-md text-sm font-medium ${
           showLanguage === "en"
             ? "bg-indigo-600 text-white"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
         }`}
       >
         English
@@ -28,7 +28,7 @@ export default function LanguageSwitcher({
         className={`px-3 py-1 rounded-md text-sm font-medium ${
           showLanguage === "zh"
             ? "bg-indigo-600 text-white"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            : "bg-gray-700 text-gray-300 hover:bg-gray-600"
         }`}
       >
         中文

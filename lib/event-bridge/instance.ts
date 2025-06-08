@@ -1,23 +1,24 @@
 import {
   UIEventHandler,
-  UIEventChainItem,
   UIBridgeInterface,
+  DeclaredChain,
+  ChainBuilder,
   UIEventBatchItem,
 } from "./types";
+import { UIChainBuilder } from "./chain-builder";
 import EventEmitter from "eventemitter3";
 
-// Define a special sleep event type
+// Define special event types
 const SLEEP_EVENT = "__SLEEP__";
 
 export class UIBridge implements UIBridgeInterface {
   private _emitter = new EventEmitter();
-  private _eventChain: UIEventChainItem[] = [];
-  private _isProcessing = false; // Flag indicating whether event chain is being processed
+  private _declaredChains = new Map<string, DeclaredChain>();
 
   constructor() {
     // Register internal sleep handler
     // When sleep event is triggered, delay execution of next event by specified duration
-    this._emitter.on(SLEEP_EVENT, (props, next, stop) => {
+    this._emitter.on(SLEEP_EVENT, (props, next) => {
       const { duration = 0 } = props;
       setTimeout(() => {
         next(props.prev || {});
@@ -31,9 +32,9 @@ export class UIBridge implements UIBridgeInterface {
    * @param callback Callback function that receives event props, next function and stop function as parameters
    * @returns Function to unsubscribe the listener
    */
-  public on(event: string, callback: UIEventHandler) {
+  public on(event: string, callback: UIEventHandler): () => void {
     // Wrap callback to ensure next is always called unless stop is explicitly called
-    const wrappedCallback = (
+    const wrappedCallback = async (
       props: Record<string, any>,
       next: (nextProps?: Record<string, any>) => void
     ) => {
@@ -53,14 +54,25 @@ export class UIBridge implements UIBridgeInterface {
           return;
         }
 
-        // If callback returned a value, handle it
-        if (result !== undefined) {
-          // Special handling for object type returns
+        // Handle Promise return values
+        if (result && typeof result.then === 'function') {
+          const awaited = await result;
+          if (isStopped) return;
+          
+          if (awaited !== undefined) {
+            if (typeof awaited === "object" && awaited !== null) {
+              next(awaited);
+            } else {
+              next({ value: awaited, prev: props });
+            }
+          } else {
+            next(props);
+          }
+        } else if (result !== undefined) {
+          // Handle synchronous return values
           if (typeof result === "object" && result !== null) {
-            // Use returned object as props for next event
             next(result);
           } else {
-            // Wrap non-object returns in an object
             next({ value: result, prev: props });
           }
         } else {
@@ -83,97 +95,118 @@ export class UIBridge implements UIBridgeInterface {
   }
 
   /**
-   * Add an event to the event chain
-   * @param event Event name
-   * @param props Event parameters object
-   * @returns This instance for chaining
+   * Declarative API - create event chain builder
    */
-  public add(event: string, props: Record<string, any> = {}): UIBridge {
-    // Add event to chain
-    this._eventChain.push({ event, props });
-
-    // Start processing if no events are currently being processed
-    if (!this._isProcessing) {
-      this._processNextEvent();
-    }
-
-    return this;
-  }
-
-  /**
-   * Add a delay to the event chain
-   * @param duration Delay duration in milliseconds
-   * @returns This instance for chaining
-   */
-  public sleep(duration: number): UIBridge {
-    return this.add(SLEEP_EVENT, { duration });
-  }
-
-  /**
-   * Batch add events to the event chain
-   * @param events Array of events, each containing event name and optional parameters
-   * @returns This instance
-   */
-  public batch(events: UIEventBatchItem[]): UIBridge {
-    // Clear current event chain to avoid mixing
-    this.clear();
-
-    events.forEach((item) => {
-      if (item.event === "sleep" && item.props?.duration) {
-        // Handle special sleep event
-        this.sleep(item.props.duration);
-      } else {
-        this.add(item.event, item.props || {});
+  public chain(chainId: string): ChainBuilder {
+    const builder = new UIChainBuilder(chainId);
+    
+    // Create a proxy object containing all builder methods
+    const proxy: ChainBuilder = {
+      add: (event: string, props?: Record<string, any>) => {
+        builder.add(event, props);
+        return proxy;
+      },
+      sleep: (duration: number) => {
+        builder.sleep(duration);
+        return proxy;
+      },
+      batch: (events: UIEventBatchItem[]) => {
+        builder.batch(events);
+        return proxy;
+      },
+      meta: (metadata: Record<string, any>) => {
+        builder.meta(metadata);
+        return proxy;
+      },
+      build: () => {
+        const chain = builder.build();
+        this._declaredChains.set(chainId, chain);
+        return chain;
       }
-    });
-
-    return this;
+    };
+    
+    return proxy;
   }
 
   /**
-   * Clear the event chain
+   * Consume API - execute and delete specified event chain
    */
-  public clear(): UIBridge {
-    this._eventChain = [];
-    this._isProcessing = false;
-    return this;
-  }
-
-  /**
-   * Process next event in the chain
-   * @param prevProps Parameters passed from previous event
-   */
-  private _processNextEvent(prevProps: Record<string, any> = {}) {
-    // End processing if no more events
-    if (this._eventChain.length === 0) {
-      this._isProcessing = false;
+  public async consume(chainId: string): Promise<any> {
+    const chain = this._declaredChains.get(chainId);
+    if (!chain) {
+      console.warn(`Chain "${chainId}" not found. Please declare it first using ui.chain("${chainId}").add(...).build()`);
       return;
     }
 
-    // Mark as processing
-    this._isProcessing = true;
+    // Immediately delete declaration to ensure it executes only once
+    this._declaredChains.delete(chainId);
 
-    // Get and remove first event
-    const currentEvent = this._eventChain.shift()!;
-    const eventProps = {
-      ...currentEvent.props,
-      prev: prevProps,
-    };
+    console.log(`🚀 Consuming chain "${chainId}" with ${chain.items.length} events`);
 
-    // Check if event has listeners
-    if (this._emitter.listenerCount(currentEvent.event) > 0) {
-      this._emitter.emit(
-        currentEvent.event,
-        eventProps,
-        (nextProps: Record<string, any> = {}) => {
-          // Process next event
-          this._processNextEvent(nextProps);
-        }
-      );
+    // Execute event chain
+    return this._executeChain(chain.items);
+  }
+
+  /**
+   * Check if event chain exists
+   */
+  public hasChain(chainId: string): boolean {
+    return this._declaredChains.has(chainId);
+  }
+
+  /**
+   * Get all declared event chains
+   */
+  public getChains(): Map<string, DeclaredChain> {
+    return new Map(this._declaredChains);
+  }
+
+  /**
+   * Clear event chains
+   */
+  public clear(chainId?: string): void {
+    if (chainId) {
+      this._declaredChains.delete(chainId);
     } else {
-      // If no listeners, process next event directly
-      this._processNextEvent(prevProps);
+      this._declaredChains.clear();
     }
+  }
+
+  /**
+   * Private method to execute event chain
+   */
+  private async _executeChain(items: Array<{ event: string; props: Record<string, any> }>): Promise<any> {
+    let prevProps = {};
+
+    for (const item of items) {
+      const eventProps = {
+        ...item.props,
+        prev: prevProps,
+      };
+
+      if (this._emitter.listenerCount(item.event) > 0) {
+        // Wait for event processing to complete
+        prevProps = await new Promise<Record<string, any>>((resolve) => {
+          this._emitter.emit(item.event, eventProps, (nextProps = {}) => {
+            resolve(nextProps);
+          });
+        });
+      } else {
+        // No listeners, pass through directly
+        prevProps = eventProps;
+      }
+    }
+
+    return prevProps;
+  }
+
+  // For compatibility, keep some simplified methods
+  /**
+   * @deprecated Use ui.chain(id).add(...).build() instead
+   */
+  public add(event: string, props: Record<string, any> = {}) {
+    console.warn("ui.add() is deprecated. Use ui.chain(id).add(...).build() instead");
+    return this.chain(`auto_${Date.now()}`).add(event, props);
   }
 }
 

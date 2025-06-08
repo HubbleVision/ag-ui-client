@@ -32,31 +32,32 @@ Current AI agent integrations with user interfaces face significant limitations:
 
 ### The Solution: UIBridge
 
-UIBridge provides a serializable event chain architecture that empowers AI agents to create, schedule, and execute complex UI interactions:
+UIBridge provides a **declarative + consumable** event chain architecture that empowers AI agents to create, schedule, and execute complex UI interactions:
 
 ```javascript
-// AI Agent generates this event sequence based on user requirements
-const events = [
-  { event: "data.analyze", props: { source: "quarterly_report.csv" } },
-  { event: "sleep", props: { duration: 500 } },
-  { event: "chart.generate", props: { type: "bar", title: "Revenue Breakdown" } },
-  { event: "sleep", props: { duration: 300 } },
-  { event: "recommendations.display", props: { insights: ["Focus on SaaS growth", "Reduce hardware costs"] } }
-];
+// AI Agent declares workflow but doesn't execute immediately
+ui.chain("data-analysis")
+  .add("data.analyze", { source: "quarterly_report.csv" })
+  .sleep(500)
+  .add("chart.generate", { type: "bar", title: "Revenue Breakdown" })
+  .sleep(300)
+  .add("recommendations.display", { insights: ["Focus on SaaS growth", "Reduce hardware costs"] })
+  .build();
 
-// Execute the AI-generated plan
-ui.batch(events);
+// Execute when ready - automatically consumed and deleted
+await ui.consume("data-analysis");
 ```
 
 ## Features
 
-- **🔄 Serializable Event Chains**: AI agents can create, serialize, and transmit complete UI workflows
-- **⏱️ Precise Timing Control**: Control exact timing and sequence of UI operations
-- **🔄 State Management**: Pass data between steps in the workflow
+- **🎯 Declarative Workflow Definition**: Define complete workflows without immediate execution
+- **⚡ On-Demand Consumption**: Execute workflows at the perfect timing with `ui.consume()`
+- **🔄 One-Time Execution**: Workflows are automatically deleted after consumption, preventing duplicate execution
+- **⏱️ Perfect Timing Control**: Solve async state synchronization issues naturally
 - **🧩 Component Agnostic**: Works with any component framework (React, Vue, etc.)
-- **📡 Network-friendly**: JSON-serializable format for remote execution
+- **📡 Network-friendly**: JSON-serializable workflow definitions for remote execution
 - **↔️ Bidirectional**: UI components can send data back to AI agents
-- **🔌 Two APIs**: Support for both chain-style API (`ui.add().add()`) and batch API (`ui.batch([])`)
+- **🎪 Simple & Intuitive**: Clean API design focused on ease of use
 
 ## Getting Started
 
@@ -94,29 +95,46 @@ ui.on("recommendations.display", (props, next) => {
 });
 ```
 
-2. Let AI generate and execute event chains:
+2. Declare workflows and consume when ready:
 
 ```javascript
-// Chain-style API
-ui.add("chart.create", { type: "bar", data: salesData, title: "Q3 Sales" })
+// Declarative API - Define workflow without executing
+ui.chain("analysis-workflow")
+  .add("chart.create", { type: "bar", data: salesData, title: "Q3 Sales" })
   .sleep(500)
-  .add("recommendations.display", { insights: aiGeneratedInsights });
+  .add("recommendations.display", { insights: aiGeneratedInsights })
+  .build();
 
-// Or batch API (serializable)
-ui.batch([
-  { event: "chart.create", props: { type: "bar", data: salesData, title: "Q3 Sales" } },
-  { event: "sleep", props: { duration: 500 } },
-  { event: "recommendations.display", props: { insights: aiGeneratedInsights } }
-]);
+// Consume when the timing is right
+await ui.consume("analysis-workflow");
+
+// Or consume based on conditions
+if (dataReady && userConfirmed) {
+  await ui.consume("analysis-workflow");
+}
 ```
 
 ## How It Works
 
 1. **Event Definition**: Define UI events that components can listen for and react to
-2. **Chain Creation**: AI agents create event chains, either step-by-step or as a batch
-3. **Execution**: UIBridge executes events in sequence, managing timing and data flow
-4. **State Management**: Each event can pass data to the next in the chain
+2. **Workflow Declaration**: AI agents declare event workflows using `ui.chain()` but don't execute immediately
+3. **Controlled Consumption**: Execute workflows at the perfect timing using `ui.consume()`
+4. **Automatic Cleanup**: Workflows are automatically deleted after consumption, preventing duplicate execution
 
+## Architecture Philosophy
+
+UIBridge follows a **"Declare First, Execute When Ready"** philosophy that solves complex timing and state synchronization issues elegantly:
+
+### Traditional Problems
+- **Immediate Execution**: `ui.add()` starts executing immediately, causing timing issues
+- **State Synchronization**: Async operations and UI updates happen at different times
+- **Duplicate Execution**: No built-in protection against running the same workflow multiple times
+
+### Our Solution
+- **Declarative Definition**: `ui.chain().build()` only defines workflows, no immediate execution
+- **Controlled Timing**: `ui.consume()` executes exactly when conditions are right
+- **Automatic Cleanup**: One-time consumption prevents accidental re-execution
+- **Natural State Sync**: Perfect timing control eliminates state synchronization issues
 
 ## API Reference
 
@@ -129,20 +147,60 @@ const unsubscribe = ui.on(eventName, (props, next) => {
   next(dataForNextStep);
 });
 
-// Chain-style API
-ui.add(eventName, props)
+// Declarative API - Define workflows
+ui.chain(workflowId)
+  .add(eventName, props)
   .sleep(durationMs)
-  .add(nextEventName, nextProps);
+  .add(nextEventName, nextProps)
+  .build();
 
-// Batch API
-ui.batch([
-  { event: eventName, props: eventProps },
-  { event: "sleep", props: { duration: timeMs } },
-  { event: nextEventName, props: nextProps }
-]);
+// Consumption API - Execute when ready
+await ui.consume(workflowId);
 
-// Clear the event chain
-ui.clear();
+// Utility methods
+ui.hasChain(workflowId);        // Check if workflow exists
+ui.getChains();                 // Get all declared workflows
+ui.clear(workflowId);           // Remove specific workflow
+ui.clear();                     // Remove all workflows
+```
+
+#### Solving Async State Synchronization
+
+The declarative + consumable pattern naturally solves async state synchronization issues:
+
+```typescript
+// Component A: Table with async filtering
+ui.on("context.filter", (props, next) => {
+  const { keyword } = props;
+  setIsLoading(true);
+  
+  // Async filtering
+  setTimeout(() => {
+    const filtered = data.filter(row => 
+      row.name.includes(keyword)
+    );
+    setFilteredData(filtered);
+    setIsLoading(false);
+    next({ filteredCount: filtered.length });
+  }, 1000);
+});
+
+ui.on("table.selectAll", (props, next) => {
+  // This will always operate on the latest filtered data
+  // because consume() controls the timing
+  const selectedRows = filteredData.map(row => row.id);
+  next({ selectedCount: selectedRows.length });
+});
+
+// Component B: Chat declaring workflow
+ui.chain("filter-and-select")
+  .add("context.filter", { keyword: "apple" })
+  .sleep(1200) // Wait for filtering to complete
+  .add("table.selectAll", {})
+  .build();
+
+// Consume when conditions are right
+await ui.consume("filter-and-select");
 ```
 
 ### EventBridge
@@ -196,6 +254,7 @@ bus.removeContext(contextId);
 - **Intelligent Form Filling**: AI assembles and populates complex forms
 - **Multi-step Workflows**: AI orchestrates entire business processes
 - **Dynamic UI Generation**: AI composes UI layouts based on user needs
+- **Async State Coordination**: Synchronize UI operations that depend on async state updates across multiple components
 
 ## Contributing
 
